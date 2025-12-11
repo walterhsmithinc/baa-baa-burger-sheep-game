@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Sheep</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(to bottom, #87CEEB, #98D8E8);
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 3px solid #333;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            cursor: pointer;
+            touch-action: none;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐑Flappy Sheep🐑</h1>
+    <canvas id="canvas" width="288" height="512"></canvas>
+    <script>
+        const cvs = document.getElementById('canvas');
+        const ctx = cvs.getContext('2d');
+
+        // Game state
+        let sheep = { x: 50, y: 200, w: 34, h: 24, vy: 0, rotation: 0, gravity: 0.3, flap: -6.5 };
+        let pipes = [];
+        let foods = [];
+        let score = 0;
+        let foodScore = 0;
+        let gameOver = false;
+        let frame = 0;
+        let groundScroll = 0;
+        const PIPE_WIDTH = 48;
+        const PIPE_SPEED = 2;
+        const FG_HEIGHT = 112;
+        const GAP = 170;
+
+        // Event listeners
+        document.addEventListener('keydown', (e) => { if (e.code === 'Space') { e.preventDefault(); flap(); } });
+        cvs.addEventListener('click', flap);
+        cvs.addEventListener('touchstart', (e) => { e.preventDefault(); flap(); });
+
+        function flap() {
+            if (gameOver) {
+                restart();
+            } else {
+                sheep.vy = sheep.flap;
+            }
+        }
+
+        function addPipe() {
+            const topHeight = 50 + Math.random() * (cvs.height - FG_HEIGHT * 2 - GAP - 100);
+            const bottomHeight = cvs.height - FG_HEIGHT - topHeight - GAP;
+            pipes.push({ x: cvs.width, top: topHeight, bottom: bottomHeight, passed: false });
+        }
+
+        function addFood() {
+            if (Math.random() < 0.015 && foods.length < 4) {
+                const type = Math.random() < 0.5 ? 'burger' : 'wing';
+                const w = type === 'burger' ? 24 : 28;
+                const h = type === 'burger' ? 20 : 16;
+                const y = 60 + Math.random() * (cvs.height - FG_HEIGHT - 120);
+                foods.push({ x: cvs.width, y: y, w: w, h: h, type: type });
+            }
+        }
+
+        function restart() {
+            sheep.y = 200;
+            sheep.vy = 0;
+            sheep.rotation = 0;
+            pipes = [];
+            foods = [];
+            score = 0;
+            foodScore = 0;
+            gameOver = false;
+            frame = 0;
+            groundScroll = 0;
+            addPipe();
+        }
+
+        function update() {
+            if (gameOver) return;
+
+            // Sheep physics
+            sheep.vy += sheep.gravity;
+            sheep.y += sheep.vy;
+            sheep.rotation = Math.max(-25, Math.min(90, sheep.vy * -4));
+
+            // Ground collision
+            if (sheep.y + sheep.h > cvs.height - FG_HEIGHT) {
+                gameOver = true;
+                return;
+            }
+
+            // Pipes
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                pipes[i].x -= PIPE_SPEED;
+                if (pipes[i].x + PIPE_WIDTH < 0) {
+                    pipes.splice(i, 1);
+                    continue;
+                }
+                // Score
+                if (!pipes[i].passed && pipes[i].x + PIPE_WIDTH / 2 < sheep.x) {
+                    score++;
+                    pipes[i].passed = true;
+                }
+                // Collision
+                const bottomY = cvs.height - FG_HEIGHT - pipes[i].bottom;
+                if (sheep.x + sheep.w > pipes[i].x &&
+                    sheep.x < pipes[i].x + PIPE_WIDTH &&
+                    (sheep.y < pipes[i].top || sheep.y + sheep.h > bottomY)) {
+                    gameOver = true;
+                    return;
+                }
+            }
+
+            // Foods
+            for (let i = foods.length - 1; i >= 0; i--) {
+                foods[i].x -= PIPE_SPEED;
+                if (foods[i].x + foods[i].w < 0) {
+                    foods.splice(i, 1);
+                    continue;
+                }
+                // Eat
+                if (sheep.x + sheep.w > foods[i].x &&
+                    sheep.x < foods[i].x + foods[i].w &&
+                    sheep.y + sheep.h > foods[i].y &&
+                    sheep.y < foods[i].y + foods[i].h) {
+                    foodScore++;
+                    foods.splice(i, 1);
+                    continue;
+                }
+            }
+
+            // Spawn
+            if (frame % 95 === 0) addPipe();
+            addFood();
+
+            groundScroll -= PIPE_SPEED;
+            if (groundScroll <= -24) groundScroll = 0;
+            frame++;
+        }
+
+        function drawBabySheep(x, y, rot) {
+            ctx.save();
+            ctx.translate(x + 17, y + 12);
+            ctx.rotate(rot * Math.PI / 180);
+            // Body
+            ctx.fillStyle = '#2a2a2a';
+            ctx.beginPath();
+            ctx.ellipse(0, 3, 17, 13, 0, 0, 2 * Math.PI);
+            ctx.fill();
+            // Head
+            ctx.beginPath();
+            ctx.arc(-11, 0, 9, 0, 2 * Math.PI);
+            ctx.fill();
+            // Ears
+            ctx.fillStyle = '#1a1a1a';
+            ctx.beginPath();
+            ctx.moveTo(-20, -1);
+            ctx.lineTo(-25, 3);
+            ctx.lineTo(-21, 8);
+            ctx.lineTo(-19, 4);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(-18, -7);
+            ctx.lineTo(-23, -4);
+            ctx.lineTo(-19, -1);
+            ctx.lineTo(-17, -3);
+            ctx.fill();
+            // Eyes
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(-14.5, -1, 2.2, 0, 2 * Math.PI);
+            ctx.arc(-7, -1, 2.2, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(-14.5, -1, 1, 0, 2 * Math.PI);
+            ctx.arc(-7, -1, 1, 0, 2 * Math.PI);
+            ctx.fill();
+            // Legs
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillRect(-9, 10, 3, 7);
+            ctx.fillRect(-2, 10, 3, 7);
+            ctx.fillRect(5, 10, 3, 7);
+            ctx.fillRect(12, 10, 3, 7);
+            ctx.restore();
+        }
+
+        function drawBurger(x, y, w, h) {
+            // Bottom bun
+            ctx.fillStyle = '#8B4513';
+            ctx.beginPath();
+            ctx.arc(x + w / 2, y + h * 0.7, w / 2, 0, 2 * Math.PI);
+            ctx.fill();
+            // Patty
+            ctx.fillStyle = '#8B0000';
+            ctx.fillRect(x + 3, y + h * 0.45, w - 6, h * 0.2);
+            // Lettuce
+            ctx.fillStyle = '#228B22';
+            ctx.fillRect(x + 4, y + h * 0.35, w - 8, h * 0.1);
+            // Top bun
+            ctx.fillStyle = '#D2691E';
+            ctx.beginPath();
+            ctx.arc(x + w / 2, y + h * 0.25, w / 2 * 0.85, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        function drawWing(x, y, w, h) {
+            // Bone
+            ctx.strokeStyle = '#D2B48C';
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ctx.moveTo(x + w / 4, y + h / 2);
+            ctx.quadraticCurveTo(x + w / 2, y + h / 2, x + w * 3 / 4, y + h / 2);
+            ctx.stroke();
+            // Meat
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.ellipse(x + w / 2, y + h * 0.75, w / 2.5, h / 3, 0.4, 0, 2 * Math.PI);
+            ctx.fill();
+            // Sauce
+            ctx.fillStyle = '#FF1493';
+            ctx.beginPath();
+            ctx.ellipse(x + w / 3, y + h * 0.6, w / 5, h / 8, 0, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        function drawFence(x, topH, botH) {
+            const postW = 14;
+            const railH = 8;
+            // Top fence
+            ctx.fillStyle = '#D2691E';
+            ctx.fillRect(x, 0, PIPE_WIDTH, topH);
+            ctx.fillStyle = '#A0522D';
+            for (let ry = 25; ry < topH - 25; ry += 30) {
+                ctx.fillRect(x + 5, ry, PIPE_WIDTH - 10, railH);
+            }
+            for (let py = 15; py < topH; py += 35) {
+                ctx.fillRect(x - postW / 2, py, postW, 28);
+            }
+            ctx.fillStyle = '#CD853F';
+            ctx.fillRect(x - 10, topH - 18, PIPE_WIDTH + 20, 18);
+            // Bottom fence
+            const botY = cvs.height - FG_HEIGHT - botH;
+            ctx.fillStyle = '#D2691E';
+            ctx.fillRect(x, botY, PIPE_WIDTH, botH);
+            ctx.fillStyle = '#A0522D';
+            for (let ry = 15; ry < botH - 20; ry += 30) {
+                ctx.fillRect(x + 5, botY + ry, PIPE_WIDTH - 10, railH);
+            }
+            for (let py = 15; py < botH; py += 35) {
+                ctx.fillRect(x - postW / 2, botY + py, postW, 28);
+            }
+            ctx.fillStyle = '#CD853F';
+            ctx.fillRect(x - 10, botY, PIPE_WIDTH + 20, 18);
+        }
+
+        function draw() {
+            // Sky gradient
+            const grad = ctx.createLinearGradient(0, 0, 0, cvs.height);
+            grad.addColorStop(0, '#87CEEB');
+            grad.addColorStop(0.7, '#B0E0E6');
+            grad.addColorStop(1, '#E0FFFF');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, cvs.width, cvs.height);
+
+            // Clouds
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.beginPath();
+            ctx.arc(80 + frame * 0.1 % 200, 60, 25, 0, Math.PI * 2);
+            ctx.arc(105 + frame * 0.1 % 200, 50, 30, 0, Math.PI * 2);
+            ctx.arc(130 + frame * 0.1 % 200, 65, 25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(220 - frame * 0.05 % 150, 120, 20, 0, Math.PI * 2);
+            ctx.arc(240 - frame * 0.05 % 150, 110, 28, 0, Math.PI * 2);
+            ctx.arc(260 - frame * 0.05 % 150, 125, 22, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Fences
+            pipes.forEach(p => drawFence(p.x, p.top, p.bottom));
+
+            // Foods
+            foods.forEach(f => {
+                if (f.type === 'burger') drawBurger(f.x, f.y, f.w, f.h);
+                else drawWing(f.x, f.y, f.w, f.h);
+            });
+
+            // Sheep
+            drawBabySheep(sheep.x, sheep.y, sheep.rotation);
+
+            // Ground
+            ctx.fillStyle = '#98FB98';
+            ctx.fillRect(0, cvs.height - FG_HEIGHT, cvs.width, FG_HEIGHT);
+            ctx.fillStyle = '#32CD32';
+            for (let i = 0; i < 24; i++) {
+                const gx = (i * 12 + groundScroll) % cvs.width;
+                ctx.beginPath();
+                ctx.moveTo(gx, cvs.height);
+                ctx.quadraticCurveTo(gx + 6, cvs.height - 45, gx + 12, cvs.height);
+                ctx.quadraticCurveTo(gx + 18, cvs.height - 25, gx + 24, cvs.height);
+                ctx.fill();
+            }
+
+            // Scores
+            ctx.fillStyle = 'black';
+            ctx.font = 'bold 36px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText(score, 20, 60);
+            ctx.textAlign = 'right';
+            ctx.fillText(foodScore, 268, 60);
+            ctx.textAlign = 'center';
+
+            // Game Over
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0, 0, cvs.width, cvs.height);
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 32px Arial';
+                ctx.fillText('Game Over', 144, 230);
+                ctx.font = 'bold 24px Arial';
+                ctx.fillText(`Pipes: ${score}`, 144, 270);
+                ctx.fillText(`Food: ${foodScore}`, 144, 300);
+                ctx.font = '20px Arial';
+                ctx.fillText('Click or Space to Restart', 144, 350);
+            }
+        }
+
+        // Init
+        addPipe();
+        function loop() {
+            ctx.clearRect(0, 0, cvs.width, cvs.height);
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>
